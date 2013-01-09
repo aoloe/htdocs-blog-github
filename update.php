@@ -1,41 +1,75 @@
 <?php
-
 ini_set('display_errors', '1');
 error_reporting(E_ALL);
 
-define('BLOG_CONFIG_PATH', 'data/config.php');
-define('BLOG_CONTENT_PATH', 'data/content.json');
-define('BLOG_LIST_PATH', 'data/list.json');
-define('BLOG_CACHE_PATH', 'data/cache/');
-
-$error = array();
-if (!is_dir(BLOG_CACHE_PATH)) {
-    if (!@mkdir(BLOG_CACHE_PATH, 777)) {
-        $error[] = "the ".BLOG_CACHE_PATH." directory does not exist and could not be created";
-    }
-}
-foreach (array(BLOG_CONTENT_PATH, BLOG_LIST_PATH, BLOG_CONFIG_PATH) as $item) {
-    if (!is_file($item)) {
-        if (!@touch($item)) {
-            $error[] = "the ".$item." file does not exist and could not be created";
-        }
-    } else if (!is_writable($item)) {
-        $error[] = "the ".$item." file is not writable";
-    }
-}
-
-if (!empty($error)) {
-    foreach ($error as $item) {
-        echo("<p>".$item."</p>\n");
-    }
-    die();
-}
-
-
-// phpinfo();
 function debug($label, $value) {
     echo("<p>$label<br /><pre>".htmlentities(print_r($value, 1))."</pre></p>");
 }
+
+define('BLOG_CONFIG_PATH', 'config.json');
+define('BLOG_HTTP_URL', sprintf('http://%s%s', $_SERVER['SERVER_NAME'], pathinfo($_SERVER['REQUEST_URI'], PATHINFO_DIRNAME)));
+define('BLOG_GITHUB_NOREQUEST', false);
+define('BLOG_FORCE_UPDATE', false);
+
+if (is_file(BLOG_CONFIG_PATH)) {
+    $config = json_decode(file_get_contents(BLOG_CONFIG_PATH), 1);
+} else {
+    header('Location: '.pathinfo($_SERVER['SCRIPT_NAME'], PATHINFO_DIRNAME).'/'.'install.php');
+}
+?>
+<html>
+<head>
+<title><?= $config['title'] ?></title>
+<style>
+    .warning {background-color:yellow;}
+</style>
+</head>
+<body>
+<h1><?= $config['title'] ?> Update</h1>
+<?php
+if (file_exists('install.php')) {
+    echo('<p class="warning">You should remove the <a href="install.php">install file</a>.</p>');
+}
+
+define('BLOG_CONTENT_PATH', $config['data_path'].'content.json');
+define('BLOG_LIST_PATH', $config['data_path'].'list.json');
+define('BLOG_RSS_PATH', $config['data_path'].'blog.rss');
+define('BLOG_CACHE_PATH', $config['data_path'].'cache/');
+define('BLOG_RSS_ITEMS_NUMBER', 10);
+
+define('BLOG_TEMPLATE_RSS_HEAD', <<<EOT
+<?xml version="1.0"?>
+<rss version="2.0"  xmlns:dc="http://purl.org/dc/elements/1.1/">
+<channel>
+<title>\$title</title>
+<link>\$url</link>
+<description>\$description</description>
+<language>en-us</language>
+<pubDate>\$now</pubDate>
+<lastBuildDate>\$now</lastBuildDate>
+<managingEditor>\$contact</managingEditor>
+<webMaster>\$contact</webMaster>
+EOT
+);
+define('BLOG_TEMPLATE_RSS_FOOTER', <<<EOT
+</channel>
+</rss>
+EOT
+);
+define('BLOG_TEMPLATE_RSS_ITEM', <<<EOT
+    <item>
+        <author>\$author</author>
+        <link>\$link</link>
+        <title>\$title</title>
+        <category>![CDATA[\$category]]</category>
+        <pubDate>\$date</pubDate>
+        <description><![CDATA[\$content]]></description>
+    </item>
+EOT
+);
+
+// debug('config', $config);
+
 function get_content_from_github($url) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -50,43 +84,45 @@ function get_content_from_github($url) {
     return $content;
 }
 
-$url = "https://api.github.com/rate_limit";
-$rate_limit = json_decode(get_content_from_github($url));
+$rate_limit = json_decode(get_content_from_github("https://api.github.com/rate_limit"));
 // debug('rate_limit', $rate_limit);
 
-echo("<p>".$rate_limit->rate->remaining." hits remaining of ".$rate_limit->rate->limit.".</p>");
+echo("<p>".$rate_limit->rate->remaining." hits remaining out of ".$rate_limit->rate->limit." for the next hour.</p>");
 
-$url= "https://api.github.com/repos/aoloe/htdocs-xox/contents/"; // gets the list of files in the directory
-$url= "https://api.github.com/repos/aoloe/htdocs-blog-xox/contents/text"; // gets the list of files in the directory
-// GET /repos/:owner/:repo/contents/:path
-if (false) { // @XXX: only for debugging purpose: if false don't ping each time github
-    $content_github = get_content_from_github($url);
-    // debug('content', $content);
+if (!BLOG_GITHUB_NOREQUEST) { // @XXX: only for debugging purpose: if false don't ping each time github
+    // debug('github_url', $config['github_url']);
+    $content_github = get_content_from_github($config['github_url']);
     file_put_contents("content_github.json", $content_github);
 } else {
+    echo('<p class="warning">Requests are from the cache: queries to GitHub are disabled.</p>');
     $content_github = file_get_contents("content_github.json");
 }
 $content_github = json_decode($content_github);
 // debug('content_github', $content_github);
+if (!is_array($content_github) && property_exists($content_github, 'message') && ($content_github->message == 'Not Found')) {
+    echo("<p>".$config['github_url']." not found.</p>\n");
+    die();
+}
 $content = array();
 if (file_exists(BLOG_CONTENT_PATH)) {
     $content = file_get_contents(BLOG_CONTENT_PATH);
-    $content = json_decode($content);
+    $content = json_decode($content, 1);
 }
 if (!is_array($content)) {
     $content = array();
 }
 // debug('content', $content);
+// debug('content_github', $content_github);
 include_once "spyc.php";
 include_once "markdown.php";
 
 if (is_array($content_github)) {
 
-    $changed = false;
+    $changed = 0;
     foreach ($content_github as $item) {
-        debug('item', $item);
+        // debug('item', $item);
         if ($item->type == 'file') {
-            if (!array_key_exists($item->path, $content)) {
+            if (!array_key_exists($item->name, $content)) {
                 $content[$item->name] = array (
                     'path' => $item->path,
                     'name' => $item->name,
@@ -94,6 +130,7 @@ if (is_array($content_github)) {
                     'raw_url' => 'https://raw.github.com/aoloe/htdocs-blog-xox/master/'.$item->path,
                     'sha' => '',
 
+                    'date' => '',
                     'author' => '',
                     'title' => '',
                     'tags' => '',
@@ -101,19 +138,19 @@ if (is_array($content_github)) {
             }
             $content_item = $content[$item->name];
             if ($item->sha != $content_item['sha']) {
-                $changed = true;
-                debug('item', $item);
+                $changed++;
+                // debug('item', $item);
                 $file = get_content_from_github($content_item['raw_url']);
-                debug('file', $file);
+                // debug('file', $file);
                 $yaml_end = 0;
                 if ((substr($file, 0, 3) == '---') && ($yaml_end = strpos($file, '---', 4))) {
-                    debug('yaml_end', $yaml_end);
+                    // debug('yaml_end', $yaml_end);
                     $metadata = Spyc::YAMLLoadString(substr($file, 4, $yaml_end));
-                    debug('metadata', $metadata);
-                    $content_item['date'] = (array_key_exists('date', $metadata) ? $metadata['date'] : date('d.m.Y'));
-                    if (array_key_exists('author', $metadata)) {
-                        $content_item['author'] = $metadata['author'];
+                    // debug('metadata', $metadata);
+                    if (array_key_exists('date', $metadata)) {
+                        $content_item['date'] = $metadata['date'];
                     }
+                    $content_item['author'] = (array_key_exists('author', $metadata) ? $metadata['author'] : $config['author']);
                     if (array_key_exists('title', $metadata)) {
                         $content_item['title'] = $metadata['title'];
                     }
@@ -122,39 +159,105 @@ if (is_array($content_github)) {
                 if ($yaml_end > 0) {
                     $file = substr($file, $yaml_end);
                 }
-                debug('file', $file);
+                // debug('file', $file);
                 $header = array();
                 if ($content_item['title'] != '') {
                     $header[] = '<h2 class="blog">'.$content_item['title'].'</h2>';
                 }
                 $header[] = sprintf(
                     '<p class="blog_author_date">%s%s</p>', 
-                    $content_item['author'] == '' ? '' : $content_item['author'].', ',
+                    $content_item['author'] == '' ? $config['author'] : $content_item['author'].', ',
                     $content_item['date']
                 );
                 if ($content_item['tags'] != '') {
                     $header[] = '<p class="blog_tags">'.$content_item['tags'].'</p>';
                 }
                 $file = implode("\n", $header)."\n".Markdown($file);
-                file_put_contents(BLOG_CACHE_PATH.$item->name, $file);
+                file_put_contents(BLOG_CACHE_PATH.$content_item['html_name'], $file);
+                $rss_item[] = $file;
                 $content_item['sha'] = $item->sha;
                 $content[$item->name] = $content_item;
-                debug('content_item', $content_item);
+                // debug('content_item', $content_item);
             } // if sha != sha
         } // if file
     } // foreach content_github
-    if ($changed) {
+    if (!BLOG_FORCE_UPDATE || $changed > 0) {
         $list = array();
         foreach ($content as $key => $value) {
-            $list[BLOG_CACHE_PATH.$value['html_name']] = strtotime($value['date']);
+            $list[$value['name']] = strtotime($value['date']);
         }
-        asort($list);
-        debug('list', $list);
+        arsort($list);
+        // debug('list', $list);
+        echo("<p>".$changed." new article".($changed > 1 ? 's' : '')." retrieved from ".$config['github_url'].".</p>\n");
+
+        if (is_writable(BLOG_CONTENT_PATH)) {
+            // echo('<p class="warning">Storing the content array is disabled.</p>');
+            file_put_contents(BLOG_CONTENT_PATH, json_encode($content));
+        } else {
+            echo("<p>Could not store content.json</p>");
+        }
+        if (is_writable(BLOG_LIST_PATH)) {
+            file_put_contents(BLOG_LIST_PATH, json_encode($list));
+        } else {
+            echo('<p class="warning">Could not store list.json</p>');
+        }
+
+        /**
+         * Store the latest ten entries in the rss file
+         */
+        // debug('content', $content);
+        // debug('list', $list);
+        file_put_contents(BLOG_RSS_PATH,
+            strtr(
+                BLOG_TEMPLATE_RSS_HEAD,
+                array (
+                    '$url' => BLOG_HTTP_URL,
+                    '$title' => $config['title'],
+                    '$description' => "",
+                    '$contact' => $config['contact'],
+                    '$now' => strftime("%a, %d %b %Y %H:%M:%S GMT"), // %Z does not work ...
+                )
+            )
+        );
+        $n = max(count($list), BLOG_RSS_ITEMS_NUMBER);
+        $i = 0;
+        foreach ($list as $key => $value) {
+            $content_item = $content[$key];
+            if (($content_item['date'] == '') || (strtotime($content_item['date']) > time()))
+                continue;
+            // debug('content_item', $content_item);
+            if ($i++ > $n) break;
+            // debug('content_item', $content_item);
+            // debug('html file', BLOG_CACHE_PATH.$content_item['html_name']);
+            // debug('BLOG_HTTP_URL', BLOG_HTTP_URL);
+            $rss_content = file_get_contents(BLOG_CACHE_PATH.$content_item['html_name']);
+            // converting the relative urls for images and href to absolute ones
+            $rss_content = preg_replace("#(<\s*a\s+[^>]*href\s*=\s*[\"'])(?!http)([^\"'>]+)([\"'>]+)#", '$1'.BLOG_HTTP_URL.'/$2$3', $rss_content);
+            $rss_content = preg_replace("#(<\s*img\s+[^>]*src\s*=\s*[\"'])(?!http)([^\"'>]+)([\"'>]+)#", '$1'.BLOG_HTTP_URL.'/$2$3', $rss_content);
+            file_put_contents(
+                BLOG_RSS_PATH,
+                strtr(
+                    BLOG_TEMPLATE_RSS_ITEM,
+                    array (
+                        '$author' => htmlentities($content_item['author']),
+                        '$link' => BLOG_HTTP_URL.'?'.htmlentities($content_item['html_name']),
+                        '$title' => htmlentities($content_item['title']),
+                        '$category' => implode(']]</category><category>![CDATA[', explode(',', $content_item['tags'])),
+                        '$date' => strftime("%a, %d %b %Y %H:%M:%S GMT", strtotime($content_item['date'])),
+                        '$content' => $rss_content,
+                    )
+                ),
+                FILE_APPEND
+            );
+        }
+        file_put_contents(BLOG_RSS_PATH, BLOG_TEMPLATE_RSS_FOOTER, FILE_APPEND);
+
+    } else {
+        echo("<p>No new blog articles in ".$config['github_url'].".</p>\n");
     }
 } // if is_array
 
-if (is_writable(BLOG_CONTENT_PATH)) {
-    //file_put_contents(BLOG_CONTENT_PATH, json_encode($content));
-} else {
-    echo("<p>Could not store content.json</p>");
-}
+?>
+<p>You can now <a href="index.php">view your blog</a>.</p>
+</body>
+</html>
