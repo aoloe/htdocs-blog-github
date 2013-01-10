@@ -8,11 +8,11 @@ function debug($label, $value) {
 }
 
 $field = array(
-    'title' => 'Title',
-    'author' => 'Default author',
     'github_user' => 'GitHub user',
     'github_repository' => 'GitHub repository',
     'github_path' => 'GitHub path',
+    'title' => 'Title',
+    'author' => 'Default author',
     'data_path' => 'Data path',
     'description' => 'Description',
     'contact' => 'Contact Email',

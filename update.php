@@ -36,6 +36,7 @@ define('BLOG_LIST_PATH', $config['data_path'].'list.json');
 define('BLOG_RSS_PATH', $config['data_path'].'blog.rss');
 define('BLOG_CACHE_PATH', $config['data_path'].'cache/');
 define('BLOG_RSS_ITEMS_NUMBER', 10);
+define('BLOG_TEMPLATE_ITEM_PATH', 'view/template_item.html');
 
 define('BLOG_TEMPLATE_RSS_HEAD', <<<EOT
 <?xml version="1.0"?>
@@ -67,6 +68,19 @@ define('BLOG_TEMPLATE_RSS_ITEM', <<<EOT
     </item>
 EOT
 );
+if ((BLOG_TEMPLATE_ITEM_PATH != '') && file_exists(BLOG_TEMPLATE_ITEM_PATH)) {
+    define('BLOG_TEMPLATE_ITEM', file_get_contents(BLOG_TEMPLATE_ITEM_PATH));
+} else {
+    define('BLOG_TEMPLATE_ITEM', <<<EOT
+<header>
+<h2 class="blog">\$title</h2>
+<p class="blog_author_date">\$author, \$date</p>
+<p class="blog_tags">\$tags</p>
+</header>
+\$content
+EOT
+    );
+}
 
 // debug('config', $config);
 
@@ -161,19 +175,19 @@ if (is_array($content_github)) {
                     $file = substr($file, $yaml_end);
                 }
                 // debug('file', $file);
-                $header = array();
-                if ($content_item['title'] != '') {
-                    $header[] = '<h2 class="blog">'.$content_item['title'].'</h2>';
-                }
-                $header[] = sprintf(
-                    '<p class="blog_author_date">%s%s</p>', 
-                    $content_item['author'] == '' ? $config['author'] : $content_item['author'].', ',
-                    $content_item['date']
+
+                $file = strtr(
+                    BLOG_TEMPLATE_ITEM,
+                    array (
+                        '$title' => $config['title'],
+                        '$author' => $content_item['author'] == '' ? $config['author'] : $content_item['author'].', ',
+                        
+                        '$date' => $content_item['date'],
+                        '$tags' => $content_item['tags'],
+                        '$content' => Markdown($file),
+                    )
                 );
-                if ($content_item['tags'] != '') {
-                    $header[] = '<p class="blog_tags">'.$content_item['tags'].'</p>';
-                }
-                $file = implode("\n", $header)."\n".Markdown($file);
+
                 file_put_contents(BLOG_CACHE_PATH.$content_item['html_name'], $file);
                 $rss_item[] = $file;
                 $content_item['sha'] = $item->sha;

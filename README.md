@@ -1,33 +1,46 @@
 #htdocs-blog-github
 
-A simple php script publishing articles stored in a GitHub repository.
+A set of three simple PHP script for publishing articles stored in a GitHub repository.
+
+You create and edit your article in GitHub's web interface or push them from your computer to your GitHub account.
+The PHP script will get the articles from your GitHub account without using git.
 
 ##Features
 
-- Get the list of the articles from a github repository
-- Locally cache the articles as html files
-- Update the cache on demand
-- Only the pages that have been changed are updated (the SHA hash gets checked)
-- RSS feed
+- Get the list of the articles from your GitHub repository.
+- Get the articles formatted with markdown, convert the to HTML and cache them on your webserver.
+- Update the cache on demand.
+- Only the pages that have been changed are updated (the SHA hash gets checked).
+- When updating the cache, a RSS feed is generated.
 - It only works with GitHub (for now) since it uses GitHub's API.
+- You don't need git to be installed on your webserver.
+
+##Installing and Configuring
+
+- Download the blog PHP scripts from https://github.com/aoloe/htdocs-blog-github .
+- Unpack / upload them to your server.
+- Create a "data/" directory and make it writable by your webserver.
+- Run the install.php script and fill the form with the values corresponding to your GitHub repository and your ­ future ­ blog (you can rerung the install script at any time and modify the values or directly edit the config.json file).
+- If you want to ­ and you probably should ­ customize the look and feel, you can add the following templates to the "view/ direcotry:
+  - view/template_header.html (supports the variables $title, $blog_http_url),
+  - view/template_item.html (supports the variables $title, $author, $date, $tags, $content),
+  - view/template_article.html (supports the variable $content),
+  - view/template_footer.html.
 
 ##Writing and publishing articles
 
-- Add the markdown files to your repository
+- Add the markdown files to your repository.
 - You can edit them on your computer and push them to GitHub or edit them directly in the GitHub's web interface.
-- Metadata is written in yaml (compatibility with jekyll)
-  - files without metadata are or without a date are not published;
-  - metadata must start with "---" at the beginning of the file and end with a "---"
-  - if you want the fields to be shown correctly on github markdown preview, you have to indent the metadata fields by four spaces (preformatted text)
-  - the following fields are recognized:
-    - date ([y]y.[m]m.dddd[ hh:mm])
-    - author
-    - tags (tag[,tag[,...]])
-
-##Install
-
-- Download the files from this repository
-- Unpack / upload them to your server
+- Metadata is written in yaml (compatibility with jekyll):
+  - Files without metadata or without a date are not published.
+  - Metadata must start with "---" at the beginning of the file and end with a "---".
+  - If you want the fields to be shown correctly on github markdown preview, you have to indent the metadata fields by four spaces (preformatted text).
+  - The following fields are recognized:
+    - date ([y]y.[m]m.dddd[ hh:mm]),
+    - author,
+    - tags (tag[,tag[,...]]).
+- Each time you want to update the content of your blog, simply run the "update.php" script.
+- Articles are only shown if their date is in the past.
 
 ##Copyright and Credits
 
@@ -52,4 +65,4 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 - Paginate the blog
 - Add a switch to rebuild the whole cache from scratch
 - The update (and install?) script should be protected by a (weak and simple) password (avoid that bots consume your precious GitHub hits)
-- Eventually add support geshi for Geshi
+- Eventually add support for Geshi (and nicely format code snippets)
