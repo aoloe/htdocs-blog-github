@@ -179,8 +179,8 @@ if (is_array($content_github)) {
                 $file = strtr(
                     BLOG_TEMPLATE_ITEM,
                     array (
-                        '$title' => $config['title'],
-                        '$author' => $content_item['author'] == '' ? $config['author'] : $content_item['author'].', ',
+                        '$title' => $content_item['title'],
+                        '$author' => $content_item['author'] == '' ? $config['author'] : $content_item['author'],
                         
                         '$date' => $content_item['date'],
                         '$tags' => $content_item['tags'],
