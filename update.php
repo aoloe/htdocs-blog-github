@@ -127,7 +127,7 @@ if (is_array($content_github)) {
                     'path' => $item->path,
                     'name' => $item->name,
                     'html_name' => pathinfo($item->name, PATHINFO_FILENAME).'.html',
-                    'raw_url' => 'https://raw.github.com/aoloe/htdocs-blog-xox/master/'.$item->path,
+                    'raw_url' => $config['github_url_raw'].$item->path,
                     'sha' => '',
 
                     'date' => '',
@@ -137,7 +137,8 @@ if (is_array($content_github)) {
                 );
             }
             $content_item = $content[$item->name];
-            if ($item->sha != $content_item['sha']) {
+            // debug('content_item', $content_item);
+            if (BLOG_FORCE_UPDATE || ($item->sha != $content_item['sha'])) {
                 $changed++;
                 // debug('item', $item);
                 $file = get_content_from_github($content_item['raw_url']);
@@ -190,7 +191,7 @@ if (is_array($content_github)) {
         // debug('list', $list);
         echo("<p>".$changed." new article".($changed > 1 ? 's' : '')." retrieved from ".$config['github_url'].".</p>\n");
 
-        if (is_writable(BLOG_CONTENT_PATH)) {
+        if ((file_exists(BLOG_CONTENT_PATH) && is_writable(BLOG_CONTENT_PATH) || is_writable($config['data_path']))) {
             // echo('<p class="warning">Storing the content array is disabled.</p>');
             file_put_contents(BLOG_CONTENT_PATH, json_encode($content));
         } else {

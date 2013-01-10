@@ -46,6 +46,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ##TODO
 
+- Remove the layout for impagina.org from index.php (put a template in view/)
 - Manage images uploads
 - Allow comments
 - Paginate the blog

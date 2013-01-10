@@ -40,6 +40,7 @@ if (array_key_exists('install', $_REQUEST)) {
     // GET /repos/:owner/:repo/contents/:path
     // https://api.github.com/repos/aoloe/htdocs-blog-xox/contents/text
     $config['github_url'] = sprintf("https://api.github.com/repos/%s/%s/contents/%s", $config['github_user'], $config['github_repository'], $config['github_path']);
+    $config['github_url_raw'] = sprintf("https://raw.github.com/%s/%s/master/", $config['github_user'], $config['github_repository']);
 
     // debug('config', $config);
 
@@ -57,7 +58,7 @@ if (array_key_exists('install', $_REQUEST)) {
         define('BLOG_CACHE_PATH', $config['data_path'].'cache/');
 
         if (!is_dir(BLOG_CACHE_PATH)) {
-            if (!@mkdir(BLOG_CACHE_PATH, 777)) {
+            if (!@mkdir(BLOG_CACHE_PATH, 0777)) {
                 $error[] = "the ".BLOG_CACHE_PATH." directory does not exist and could not be created";
             }
         }
