@@ -8,8 +8,10 @@ function debug($label, $value) {
 
 define('BLOG_CONFIG_PATH', 'config.json');
 define('BLOG_HTTP_URL', sprintf('http://%s%s', $_SERVER['SERVER_NAME'], pathinfo($_SERVER['REQUEST_URI'], PATHINFO_DIRNAME)));
-define('BLOG_GITHUB_NOREQUEST', false);
-define('BLOG_FORCE_UPDATE', false);
+define('BLOG_MODREWRITE_ENABLED', array_key_exists('HTTP_MOD_REWRITE', $_SERVER));
+define('BLOG_GITHUB_NOREQUEST', false); // for debugging purposes only
+define('BLOG_FORCE_UPDATE', false); // for debugging purposes only
+define('BLOG_STORE_NOUPDATE', false); // for debugging purposes only
 
 if (is_file(BLOG_CONFIG_PATH)) {
     $config = json_decode(file_get_contents(BLOG_CONFIG_PATH), 1);
@@ -73,7 +75,7 @@ if ((BLOG_TEMPLATE_ITEM_PATH != '') && file_exists(BLOG_TEMPLATE_ITEM_PATH)) {
 } else {
     define('BLOG_TEMPLATE_ITEM', <<<EOT
 <header>
-<h2 class="blog">\$title</h2>
+<h2 class="blog" id="\$id\"><a href="\$url">\$title</a></h2>
 <p class="blog_author_date">\$author, \$date</p>
 <p class="blog_tags">\$tags</p>
 </header>
@@ -117,12 +119,14 @@ if (!is_array($content_github) && property_exists($content_github, 'message') &&
     echo("<p>".$config['github_url']." not found.</p>\n");
     die();
 }
-$content = array();
-if (file_exists(BLOG_CONTENT_PATH)) {
-    $content = file_get_contents(BLOG_CONTENT_PATH);
-    $content = json_decode($content, 1);
+if (!BLOG_FORCE_UPDATE) {
+    $content = array();
+    if (file_exists(BLOG_CONTENT_PATH)) {
+        $content = file_get_contents(BLOG_CONTENT_PATH);
+        $content = json_decode($content, 1);
+    }
 }
-if (!is_array($content)) {
+if (!isset($content) || !is_array($content)) {
     $content = array();
 }
 // debug('content', $content);
@@ -137,10 +141,12 @@ if (is_array($content_github)) {
         // debug('item', $item);
         if ($item->type == 'file') {
             if (!array_key_exists($item->name, $content)) {
-                $content[$item->name] = array (
+                $id = pathinfo($item->name, PATHINFO_FILENAME);
+                $content[$id] = array (
                     'path' => $item->path,
                     'name' => $item->name,
-                    'html_name' => pathinfo($item->name, PATHINFO_FILENAME).'.html',
+                    'html_name' => $id.'.html',
+                    'id' => $id,
                     'raw_url' => $config['github_url_raw'].$item->path,
                     'sha' => '',
 
@@ -150,7 +156,7 @@ if (is_array($content_github)) {
                     'tags' => '',
                 );
             }
-            $content_item = $content[$item->name];
+            $content_item = $content[$id];
             // debug('content_item', $content_item);
             if (BLOG_FORCE_UPDATE || ($item->sha != $content_item['sha'])) {
                 $changed++;
@@ -180,6 +186,8 @@ if (is_array($content_github)) {
                     BLOG_TEMPLATE_ITEM,
                     array (
                         '$title' => $content_item['title'],
+                        '$id' => $content_item['id'],
+                        '$url' => (BLOG_MODREWRITE_ENABLED ? '' : 'id=').$content_item['id'],
                         '$author' => $content_item['author'] == '' ? $config['author'] : $content_item['author'],
                         
                         '$date' => $content_item['date'],
@@ -191,21 +199,22 @@ if (is_array($content_github)) {
                 file_put_contents(BLOG_CACHE_PATH.$content_item['html_name'], $file);
                 $rss_item[] = $file;
                 $content_item['sha'] = $item->sha;
-                $content[$item->name] = $content_item;
+                $content[$id] = $content_item;
                 // debug('content_item', $content_item);
             } // if sha != sha
         } // if file
     } // foreach content_github
-    if (!BLOG_FORCE_UPDATE || $changed > 0) {
+    // debug('content', $content);
+    if (!BLOG_STORE_NOUPDATE && ($changed > 0)) {
         $list = array();
         foreach ($content as $key => $value) {
-            $list[$value['name']] = strtotime($value['date']);
+            $list[$value['id']] = strtotime($value['date']);
         }
         arsort($list);
         // debug('list', $list);
         echo("<p>".$changed." new article".($changed > 1 ? 's' : '')." retrieved from ".$config['github_url'].".</p>\n");
 
-        if ((file_exists(BLOG_CONTENT_PATH) && is_writable(BLOG_CONTENT_PATH) || is_writable($config['data_path']))) {
+        if ((file_exists(BLOG_CONTENT_PATH) && is_writable(BLOG_CONTENT_PATH)) || is_writable($config['data_path'])) {
             // echo('<p class="warning">Storing the content array is disabled.</p>');
             file_put_contents(BLOG_CONTENT_PATH, json_encode($content));
         } else {
@@ -255,7 +264,7 @@ if (is_array($content_github)) {
                     BLOG_TEMPLATE_RSS_ITEM,
                     array (
                         '$author' => htmlentities($content_item['author']),
-                        '$link' => BLOG_HTTP_URL.'?'.htmlentities($content_item['html_name']),
+                        '$link' => BLOG_HTTP_URL.'/'.(BLOG_MODREWRITE_ENABLED ? '' : 'a=').htmlentities($content_item['id']),
                         '$title' => htmlentities($content_item['title']),
                         '$category' => implode(']]</category><category>![CDATA[', explode(',', $content_item['tags'])),
                         '$date' => strftime("%a, %d %b %Y %H:%M:%S GMT", strtotime($content_item['date'])),

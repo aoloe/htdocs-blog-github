@@ -6,6 +6,7 @@ function debug($label, $value) {
     echo("<p>$label<br /><pre>".htmlentities(print_r($value, 1))."</pre></p>");
 }
 // phpinfo();
+// debug('server', $_SERVER);
 
 define('BLOG_CONFIG_PATH', 'config.json');
 define('BLOG_HTTP_URL', sprintf('http://%s%s', $_SERVER['SERVER_NAME'], pathinfo($_SERVER['SCRIPT_NAME'], PATHINFO_DIRNAME)));
@@ -30,6 +31,8 @@ if (is_file(BLOG_CONTENT_PATH) && is_file(BLOG_LIST_PATH)) {
     header('Location: '.pathinfo($_SERVER['SCRIPT_NAME'], PATHINFO_DIRNAME).'/'.'install.php');
 }
 
+define('BLOG_MODREWRITE_ENABLED', array_key_exists('HTTP_MOD_REWRITE', $_SERVER));
+
 define('BLOG_TEMPLATE_HEADER_PATH', 'view/template_header.html');
 define('BLOG_TEMPLATE_ARTICLE_PATH', 'view/template_article.html');
 define('BLOG_TEMPLATE_FOOTER_PATH', 'view/template_footer.html');
@@ -51,7 +54,7 @@ if ((BLOG_TEMPLATE_HEADER_PATH != '') && file_exists(BLOG_TEMPLATE_HEADER_PATH))
 <body>
 <header>
 </header>     
-<h1>\$title</h1>
+<h1><a href="\$blog_http_url">\$title</a></h1>
 EOT
     );
 }
@@ -84,18 +87,33 @@ echo(strtr(
     )
 ));
 
+// debug('_REQUEST', $_REQUEST);
 // debug('list', $list);
 // debug('content', $content);
 $now = time();
-if (!empty($content)) {
-    foreach($list as $key => $value) {
-        if (array_key_exists($key, $content) && ($value != '') && ($value <= $now)) {
+if (is_array($content) && !empty($content)) {
+    if (array_key_exists('a', $_REQUEST) && array_key_exists($_REQUEST['a'], $content)) {
+        $article = $_REQUEST['a'];
+    }
+    if (isset($article)) {
+        if (($list[$article] != '') && ($list[$article] <= $now)) {
             echo(strtr(
                 BLOG_TEMPLATE_ARTICLE,
                 array (
-                    '$content' => file_get_contents(BLOG_CACHE_PATH.$content[$key]['html_name']),
+                    '$content' => file_get_contents(BLOG_CACHE_PATH.$content[$article]['html_name']),
                 )
             ));
+        }
+    } else {
+        foreach($list as $key => $value) {
+            if (array_key_exists($key, $content) && ($value != '') && ($value <= $now)) {
+                echo(strtr(
+                    BLOG_TEMPLATE_ARTICLE,
+                    array (
+                        '$content' => file_get_contents(BLOG_CACHE_PATH.$content[$key]['html_name']),
+                    )
+                ));
+            }
         }
     }
 }

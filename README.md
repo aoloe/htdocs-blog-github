@@ -60,7 +60,6 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 ##TODO
 
 - Manage images uploads.
-- Make the single articles linkable.
 - Allow comments.
 - Paginate the blog.
 - Add a switch to rebuild the whole cache from scratch.
