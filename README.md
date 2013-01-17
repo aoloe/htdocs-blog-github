@@ -62,7 +62,6 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 - Manage images uploads.
 - Allow comments.
 - Paginate the blog.
-- Add a switch to rebuild the whole cache from scratch.
 - The update (and install?) script should be protected by a (weak and simple) password (avoid that bots consume your precious GitHub hits).
 - Eventually add support for Geshi (and nicely format code snippets).
 - Respect the publishing date for the rss feed (currently, the date is checked when the RSS feed is generated and not when it is requested).

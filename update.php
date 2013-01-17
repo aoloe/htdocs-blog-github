@@ -8,10 +8,13 @@ function debug($label, $value) {
 
 define('BLOG_CONFIG_PATH', 'config.json');
 define('BLOG_HTTP_URL', sprintf('http://%s%s', $_SERVER['SERVER_NAME'], pathinfo($_SERVER['REQUEST_URI'], PATHINFO_DIRNAME)));
-define('BLOG_MODREWRITE_ENABLED', array_key_exists('HTTP_MOD_REWRITE', $_SERVER));
+// define('BLOG_MODREWRITE_ENABLED', array_key_exists('HTTP_MOD_REWRITE', $_SERVER));
+define('BLOG_MODREWRITE_ENABLED', true);
 define('BLOG_GITHUB_NOREQUEST', false); // for debugging purposes only
 define('BLOG_FORCE_UPDATE', false); // for debugging purposes only
 define('BLOG_STORE_NOUPDATE', false); // for debugging purposes only
+
+// debug('apache get_env', apache_getenv('HTTP_MOD_REWRITE'));
 
 if (is_file(BLOG_CONFIG_PATH)) {
     $config = json_decode(file_get_contents(BLOG_CONFIG_PATH), 1);
@@ -105,8 +108,7 @@ $rate_limit = json_decode(get_content_from_github("https://api.github.com/rate_l
 
 echo("<p>".$rate_limit->rate->remaining." hits remaining out of ".$rate_limit->rate->limit." for the next hour.</p>");
 
-if (!BLOG_GITHUB_NOREQUEST) { // @XXX: only for debugging purpose: if false don't ping each time github
-    // debug('github_url', $config['github_url']);
+if (!BLOG_GITHUB_NOREQUEST) {
     $content_github = get_content_from_github($config['github_url']);
     file_put_contents("content_github.json", $content_github);
 } else {
@@ -119,15 +121,15 @@ if (!is_array($content_github) && property_exists($content_github, 'message') &&
     echo("<p>".$config['github_url']." not found.</p>\n");
     die();
 }
-if (!BLOG_FORCE_UPDATE) {
-    $content = array();
+$content = array();
+if (!array_key_exists('force', $_REQUEST) && !BLOG_FORCE_UPDATE) {
     if (file_exists(BLOG_CONTENT_PATH)) {
         $content = file_get_contents(BLOG_CONTENT_PATH);
         $content = json_decode($content, 1);
     }
-}
-if (!isset($content) || !is_array($content)) {
-    $content = array();
+    if (!is_array($content)) {
+        $content = array();
+    }
 }
 // debug('content', $content);
 // debug('content_github', $content_github);
@@ -140,8 +142,8 @@ if (is_array($content_github)) {
     foreach ($content_github as $item) {
         // debug('item', $item);
         if ($item->type == 'file') {
-            if (!array_key_exists($item->name, $content)) {
-                $id = pathinfo($item->name, PATHINFO_FILENAME);
+            $id = pathinfo($item->name, PATHINFO_FILENAME);
+            if (!array_key_exists($id, $content)) {
                 $content[$id] = array (
                     'path' => $item->path,
                     'name' => $item->name,
@@ -158,7 +160,7 @@ if (is_array($content_github)) {
             }
             $content_item = $content[$id];
             // debug('content_item', $content_item);
-            if (BLOG_FORCE_UPDATE || ($item->sha != $content_item['sha'])) {
+            if ($item->sha != $content_item['sha']) {
                 $changed++;
                 // debug('item', $item);
                 $file = get_content_from_github($content_item['raw_url']);
@@ -187,7 +189,7 @@ if (is_array($content_github)) {
                     array (
                         '$title' => $content_item['title'],
                         '$id' => $content_item['id'],
-                        '$url' => (BLOG_MODREWRITE_ENABLED ? '' : 'id=').$content_item['id'],
+                        '$url' => (BLOG_MODREWRITE_ENABLED ? '' : '?a=').$content_item['id'],
                         '$author' => $content_item['author'] == '' ? $config['author'] : $content_item['author'],
                         
                         '$date' => $content_item['date'],
@@ -264,7 +266,7 @@ if (is_array($content_github)) {
                     BLOG_TEMPLATE_RSS_ITEM,
                     array (
                         '$author' => htmlentities($content_item['author']),
-                        '$link' => BLOG_HTTP_URL.'/'.(BLOG_MODREWRITE_ENABLED ? '' : 'a=').htmlentities($content_item['id']),
+                        '$link' => BLOG_HTTP_URL.'/'.(BLOG_MODREWRITE_ENABLED ? '' : '?a=').htmlentities($content_item['id']),
                         '$title' => htmlentities($content_item['title']),
                         '$category' => implode(']]</category><category>![CDATA[', explode(',', $content_item['tags'])),
                         '$date' => strftime("%a, %d %b %Y %H:%M:%S GMT", strtotime($content_item['date'])),
@@ -282,6 +284,10 @@ if (is_array($content_github)) {
 } // if is_array
 
 ?>
+<form method="post">
+<input type="checkbox" name="force" value="yes" id="force_update" /> <label for="force_update">Force</label>
+<input type="submit" value="&raquo;" />
+</form>
 <p>You can now <a href="index.php">view your blog</a>.</p>
 </body>
 </html>

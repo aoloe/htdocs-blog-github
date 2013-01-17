@@ -3,5 +3,5 @@ SetEnv HTTP_MOD_REWRITE On
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.php/?a=$1 [L]
+RewriteRule ^(.*)$ index.php/?a=$1 [L,E=HTTP_MOD_REWRITE:On]
 </IfModule>

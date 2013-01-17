@@ -31,7 +31,8 @@ if (is_file(BLOG_CONTENT_PATH) && is_file(BLOG_LIST_PATH)) {
     header('Location: '.pathinfo($_SERVER['SCRIPT_NAME'], PATHINFO_DIRNAME).'/'.'install.php');
 }
 
-define('BLOG_MODREWRITE_ENABLED', array_key_exists('HTTP_MOD_REWRITE', $_SERVER));
+// define('BLOG_MODREWRITE_ENABLED', array_key_exists('HTTP_MOD_REWRITE', $_SERVER));
+define('BLOG_MODREWRITE_ENABLED', true);
 
 define('BLOG_TEMPLATE_HEADER_PATH', 'view/template_header.html');
 define('BLOG_TEMPLATE_ARTICLE_PATH', 'view/template_article.html');
